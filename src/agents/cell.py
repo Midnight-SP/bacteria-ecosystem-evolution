@@ -14,7 +14,7 @@ class Cell:
                 (1, 1), (-1, -1), (1, -1), (-1, 1)
             ]
         ]
-        self.genome = genome if genome is not None else np.random.randint(-128, 128, 255, dtype=np.int8)
+        self.genome = genome if genome is not None else np.random.randint(-128, 128, 255, dtype=np.uint8)
         self.initial_energy = int(self.genome[0]) if self.genome is not None else 64
         self.energy = self.initial_energy
         self.age = 0
@@ -32,7 +32,7 @@ class Cell:
             nn_genome = None
             if len(self.genome) >= self.input_size * self.output_size:
                 nn_genome = self.genome[-(self.input_size * self.output_size):]
-            self.nn = NeuralNetwork(input_size=self.input_size, output_size=self.output_size, genome=nn_genome, mutation_rate=self.mutation_rate/128)
+            self.nn = NeuralNetwork(input_size=self.input_size, output_size=self.output_size, genome=nn_genome, mutation_rate=self.mutation_rate/255)
 
     def __eq__(self, other):
         if not isinstance(other, Cell):
@@ -44,20 +44,6 @@ class Cell:
 
     def __repr__(self):
         return f"Cell({self.x}, {self.y})"
-
-    def act(self, environment_state):
-        # Odczytaj sensory z otoczenia
-        nn_input = self.sense_environment(environment_state)
-        action = np.argmax(self.nn.forward(nn_input))
-        # Każda akcja zużywa energię
-        if action == 0:
-            self.energy -= 5
-            return self.divide(self.neighbors)
-        elif action == 1:
-            self.energy -= 2
-            self.spread_pheromones()
-        else:
-            self.energy -= 1  # brak akcji
 
     def sense_environment(self, environment_state):
         inputs = []
@@ -72,32 +58,16 @@ class Cell:
         inputs.append(self.age / (self.max_age + 1))
         return np.array(inputs)
 
-    def divide(self, neighbors):
-        available_neighbors = [pos for pos in neighbors if not (len(pos) > 2 and pos[2])]
-        if len(available_neighbors) < 2:
-            raise ValueError("Not enough free neighboring positions to place both children.")
-
-        chosen_positions = random.sample(available_neighbors, 2)
-        mid = len(self.genome) // 2
-        genome_child1 = np.concatenate([self.genome[:mid], self.mutate(self.genome[mid:])])
-        genome_child2 = np.concatenate([self.genome[mid:], self.mutate(self.genome[:mid])])
-
-        # Sieć potomków: crossover + mutacja
-        nn_child1 = NeuralNetwork.crossover(self.nn, self.nn, mutation_rate=self.mutation_rate/128)
-        nn_child2 = NeuralNetwork.crossover(self.nn, self.nn, mutation_rate=self.mutation_rate/128)
-
-        child1 = self.__class__(chosen_positions[0][0], chosen_positions[0][1], genome=genome_child1, nn=nn_child1, input_size=self.input_size, output_size=self.output_size)
-        child2 = self.__class__(chosen_positions[1][0], chosen_positions[1][1], genome=genome_child2, nn=nn_child2, input_size=self.input_size, output_size=self.output_size)
-        return [(child1, chosen_positions[0]), (child2, chosen_positions[1])]
-
     def mutate(self, genome_part):
         mutated = []
         for gene in genome_part:
-            if random.random() < self.mutation_rate/128:
-                mutated.append(gene + random.uniform(-0.1, 0.1))
+            if random.random() < self.mutation_rate/255:
+                new_val = int(gene) + int(random.uniform(-5, 5))
+                new_val = max(0, min(255, new_val))
+                mutated.append(new_val)
             else:
-                mutated.append(gene)
-        return np.array(mutated, dtype=np.int8)
+                mutated.append(int(gene))
+        return np.array(mutated, dtype=np.uint8)
 
     def vitals(self):
         if self.energy <= 0:
@@ -118,3 +88,34 @@ class Cell:
         for nx, ny in self.neighbors:
             pheromone_actions.append(((nx, ny), neighbor_strength))
         return pheromone_actions
+
+    def can_reproduce_with(self, other, input_size=None, output_size=None, tolerance=16, similarity=0.9):
+        """
+        Sprawdza, czy dwie komórki mogą się rozmnażać na podstawie genomu (bez wag NN).
+        """
+        if input_size is None:
+            input_size = self.input_size
+        if output_size is None:
+            output_size = self.output_size
+
+        nn_len = input_size * output_size
+        # Geny bez wag NN
+        g1 = self.genome[:-nn_len] if nn_len > 0 else self.genome
+        g2 = other.genome[:-nn_len] if nn_len > 0 else other.genome
+
+        if len(g1) != len(g2):
+            return False
+
+        similar = np.sum(np.abs(g1 - g2) <= tolerance)
+        return (similar / len(g1)) >= similarity
+    
+    def neighboring_cells(self, environment_state):
+        """
+        Zwraca listę sąsiednich komórek z otoczenia.
+        """
+        neighbors = []
+        for nx, ny in self.neighbors:
+            cell_info = environment_state.get((nx, ny), None)
+            if cell_info and cell_info.get('type') == 'cell':
+                neighbors.append(cell_info['object'])
+        return neighbors

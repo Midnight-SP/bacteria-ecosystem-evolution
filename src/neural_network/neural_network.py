@@ -7,9 +7,11 @@ class NeuralNetwork:
         self.output_size = output_size
         self.mutation_rate = mutation_rate
 
-        # Liczba wag: input_size * output_size
         if genome is not None:
-            self.weights = np.array(genome).reshape((input_size, output_size))
+            # Zamień uint8 na float w zakresie -1..1
+            genome = np.array(genome, dtype=np.uint8)
+            weights = (genome.astype(np.float32) / 255.0) * 2 - 1
+            self.weights = weights.reshape((input_size, output_size))
         else:
             self.weights = np.random.uniform(-1, 1, (input_size, output_size))
 
@@ -33,7 +35,6 @@ class NeuralNetwork:
 
     @classmethod
     def crossover(cls, nn1, nn2, mutation_rate=0.05):
-        # Tworzy nową sieć z połowy wag nn1 i połowy nn2, z mutacją
         genome1 = nn1.get_genome()
         genome2 = nn2.get_genome()
         split = len(genome1) // 2
@@ -41,5 +42,12 @@ class NeuralNetwork:
         # Mutacja genomu
         for i in range(len(new_genome)):
             if random.random() < mutation_rate:
-                new_genome[i] += np.random.normal(0, 0.1)
+                new_val = new_genome[i] + np.random.normal(0, 0.1)
+            else:
+                new_val = new_genome[i]
+            # Wymuś zakres i typ int
+            new_val = int(round(new_val))
+            new_val = max(0, min(255, new_val))
+            new_genome[i] = new_val
+        # Teraz new_genome jest listą intów w zakresie 0–255
         return cls(nn1.input_size, nn1.output_size, genome=new_genome, mutation_rate=mutation_rate)

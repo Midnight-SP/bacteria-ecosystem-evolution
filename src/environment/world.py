@@ -1,8 +1,10 @@
+from typing import Any, Optional
+
 class World:
-    def __init__(self, width, height):
+    def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
-        self.grid = [[None for _ in range(self.width)] for _ in range(self.height)]
+        self.grid: list[list[Optional[Any]]] = [[None for _ in range(self.width)] for _ in range(self.height)]
     
     def update(self):
         pass # Placeholder for world update logic
