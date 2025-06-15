@@ -17,83 +17,104 @@ def make_handcrafted_protist_nn():
         [ 0.0,  0.0],   # chemotaxis
         [ 0.0, -2.0],   # cooldown
     ])
+    # Jeśli cooldown > 0, bardzo nie chcemy rozmnażać się
+    weights[4, 1] = -100.0  # wejście cooldown → wyjście reproduce
     nn = NeuralNetwork(input_size=5, output_size=2)
     nn.weights = weights
     return nn
 
 def make_handcrafted_herbivore_bacteria_nn():
-    # 28 wejść, 5 wyjść
-    weights = np.zeros((28, 5))
-
-    # Wzrok: 8 kierunków, co 2 wejścia (czy jest komórka, czy jest feromon)
-    # Kierunek 0 (przed siebie): sight[0] (czy jest komórka)
-    # Kierunek 0 (przed siebie): sight[1] (czy jest feromon)
-    # Kierunki: 0,2,4,6,8,10,12,14 (czy jest komórka)
-    # Feromony: 1,3,5,7,9,11,13,15
+    weights = np.zeros((30, 7))
 
     # Jeśli przed sobą jest komórka (potencjalny protist) → jedz
-    weights[5 + 0, 4] = 5.0  # sight[0] (czy jest komórka przed) → eat
+    weights[5 + 0, 5] = 8.0  # sight[0] (komórka przed) → eat
 
     # Jeśli w innych kierunkach jest komórka → skręć
     for i in range(1, 8):
-        weights[5 + i*2, 3] = 2.0  # sight[i*2] (czy jest komórka) → turn
+        weights[5 + i*2, 3] = 1.5  # sight[i*2] (czy jest komórka) → turn
 
     # Jeśli nigdzie nie widzi komórki → idź do przodu
-    weights[2, 2] = 1.0  # health (zawsze trochę motywuje do ruchu)
+    weights[2, 2] = 2.0  # health (motywuje do ruchu)
+    weights[0, 6] = 0.5  # energy → sprint (np. sprintuj przy wysokiej energii)
 
-    # Jeśli przed sobą jest feromon → rozmnażaj się
-    weights[5 + 1, 1] = 3.0  # sight[1] (feromon przed) → reproduce
+    # Jeśli przed sobą jest feromon → mocniej idź do przodu
+    weights[5 + 1, 2] = 2.0  # sight[1] (feromon przed) → move
 
-    # Jeśli gdziekolwiek jest feromon → rozsyłaj feromony (sygnał do kolonii)
-    for i in range(0, 8):
-        weights[5 + i*2 + 1, 0] = 1.0  # sight feromony → pheromones
+    # Chemotaksja (jeśli dużo feromonów) → lekko preferuj ruch do przodu
+    weights[3, 2] = 0.5  # chemotaxis → move
 
-    # Chemotaksja (jeśli dużo feromonów) → rozmnażaj się
-    weights[3, 1] = 2.0  # chemotaxis → reproduce
+    # Rozmnażanie tylko przy wysokiej energii
+    weights[0, 1] = 1.5  # energy → reproduce
+    weights[4, 1] = -100.0  # cooldown > 0 → nie rozmnażaj się
 
-    # Trochę biasu do ruchu do przodu
-    weights[0, 2] = 0.5  # energy → move forward
+    # Rozsyłanie feromonów tylko przy obecności innych komórek
+    for i in range(8):
+        weights[5 + i*2, 0] = 0.3  # sight komórki → pheromones
 
-    nn = NeuralNetwork(input_size=28, output_size=5)
+    # Dodatkowe zachowania dla bakterii roślinożernych
+    weights[5 + 1, 3] = 2.0  # sight[1] (feromon po lewej) → turn_left
+    weights[5 + 3, 4] = 2.0  # sight[3] (feromon po prawej) → turn_right
+
+    weights[28, 5] = 10.0  # can_eat_ahead → eat
+    weights[29, 1] = 10.0  # can_reproduce_ahead → reproduce
+
+    # Jeśli nie może jeść ani się rozmnażać, preferuj ruch i skręt
+    weights[2, 2] = 5.0   # health → move
+    weights[2, 3] = 2.0   # health → turn_left
+    weights[2, 4] = 2.0   # health → turn_right
+
+    weights[:, 2] += 0.2  # lekka preferencja do ruchu
+
+    nn = NeuralNetwork(input_size=30, output_size=7)
     nn.weights = weights
     return nn
 
 def make_handcrafted_carnivore_bacteria_nn():
-    weights = np.zeros((28, 5))
-
-    # 0: pheromones, 1: reproduce, 2: move, 3: turn, 4: eat
+    weights = np.zeros((30, 7))
 
     # Jeśli przed sobą jest komórka (potencjalna ofiara) → jedz
-    weights[5 + 0, 4] = 5.0  # sight[0] (czy jest komórka przed) → eat
+    weights[5 + 0, 5] = 8.0  # sight[0] (czy jest komórka przed) → eat
 
-    # Jeśli w innych kierunkach jest komórka → skręć i próbuj gryźć
+    # Jeśli w innych kierunkach jest komórka → skręć w jej stronę
     for i in range(1, 8):
-        weights[5 + i*2, 3] = 2.0  # sight[i*2] (czy jest komórka) → turn
-        weights[5 + i*2, 4] = 1.0  # sight[i*2] (czy jest komórka) → eat
+        if i < 4:
+            weights[5 + i*2, 3] = 2.0  # sight[i*2] (komórka po lewej) → turn_left
+        else:
+            weights[5 + i*2, 4] = 2.0  # sight[i*2] (komórka po prawej) → turn_right
 
-    # Jeśli widzi ofiarę (gdziekolwiek) → rozsyłaj feromony
-    for i in range(0, 8):
-        weights[5 + i*2, 0] = 2.0  # sight[i*2] (czy jest komórka) → pheromones
+    # Jeśli nigdzie nie widzi komórki → idź do przodu lub sprintuj
+    weights[2, 2] = 2.0  # health → move
+    weights[0, 6] = 1.0  # energy → sprint (przy wysokiej energii)
 
-    # Jeśli przed sobą jest feromon → skręć i próbuj gryźć
-    weights[5 + 1, 3] = 2.0  # sight[1] (feromon przed) → turn
-    weights[5 + 1, 4] = 1.0  # sight[1] (feromon przed) → eat
+    # Jeśli widzi feromon → lekko skręć w jego stronę
+    for i in range(8):
+        if i < 4:
+            weights[5 + i*2 + 1, 3] = 0.5  # sight feromony po lewej → turn_left
+        else:
+            weights[5 + i*2 + 1, 4] = 0.5  # sight feromony po prawej → turn_right
 
-    # Jeśli gdziekolwiek jest feromon → skręć
-    for i in range(0, 8):
-        weights[5 + i*2 + 1, 3] = 1.0  # sight feromony → turn
+    # Chemotaksja (wyczuwa dużo feromonów) → idź do przodu
+    weights[3, 2] = 1.0  # chemotaxis → move
 
-    # Chemotaksja (wyczuwa dużo feromonów) → skręć i próbuj gryźć
-    weights[3, 3] = 2.0  # chemotaxis → turn
-    weights[3, 4] = 1.0  # chemotaxis → eat
+    # Rozmnażanie tylko przy bardzo wysokiej energii
+    weights[0, 1] = 1.0  # energy → reproduce
+    weights[4, 1] = -100.0  # cooldown > 0 → nie rozmnażaj się
 
-    # Dużo energii → rozmnażaj się
-    weights[0, 1] = 4.0  # energy → reproduce
+    # Rozsyłanie feromonów tylko przy obecności ofiary
+    for i in range(8):
+        weights[5 + i*2, 0] = 0.2  # sight komórki → pheromones
 
-    # Domyślnie idź do przodu
-    weights[2, 2] = 1.0  # health → move forward
+    weights[28, 5] = 10.0  # can_eat_ahead → eat
+    weights[29, 1] = 10.0  # can_reproduce_ahead → reproduce
 
-    nn = NeuralNetwork(input_size=28, output_size=5)
+    # Jeśli nie może jeść ani się rozmnażać, preferuj ruch i skręt
+    weights[2, 2] = 5.0   # health → move
+    weights[2, 3] = 2.0   # health → turn_left
+    weights[2, 4] = 2.0   # health → turn_right
+
+    weights[:, 2] += 0.2  # lekka preferencja do ruchu
+
+    nn = NeuralNetwork(input_size=30, output_size=7)
     nn.weights = weights
     return nn
 
@@ -112,13 +133,19 @@ def make_carnivore_bacteria(x, y, genome):
 def main():
     world = World(WORLD_WIDTH, WORLD_HEIGHT)
 
-    # Pełne genomy
-    herb_genome = np.array([100,100,5,20,100,50,200,50,1,10,50,2,2,5,0,1,1,240,0,0,1,0], dtype=np.uint8)
+    # Pełne genomy (22 geny + eating_strength na końcu)
+    herb_genome = np.array([
+        100, 100, 5, 20, 120, 50, 200, 50, 1, 10, 50, 2, 2, 5, 0, 1, 1, 240, 0, 0, 1, 2, 8  # eating_strength=8
+    ], dtype=np.uint8)
     herb_genome = np.concatenate([herb_genome, np.random.randint(0, 256, 28*5, dtype=np.uint8)])
-    carn_genome = np.array([100,100,5,20,100,200,50,50,1,5,50,2,2,5,0,1,1,120,255,0,1,10], dtype=np.uint8)
+
+    carn_genome = np.array([
+        100, 100, 5, 20, 80, 200, 50, 50, 1, 5, 50, 2, 2, 5, 0, 1, 1, 120, 255, 0, 1, 12, 20  # eating_strength=20
+    ], dtype=np.uint8)
     carn_genome = np.concatenate([carn_genome, np.random.randint(0, 256, 28*5, dtype=np.uint8)])
-    protist1_genome = np.array([100,100,5,20,100,255,0,0,1,10,80,2,2,5,0], dtype=np.uint8)
-    protist2_genome = np.array([100,100,5,20,100,0,255,0,1,10,80,2,2,5,0], dtype=np.uint8)
+
+    protist1_genome = np.array([50,100,5,20,100,255,0,0,1,2,80,2,2,5,0], dtype=np.uint8)  # photosynthesis_rate=2
+    protist2_genome = np.array([60,80,8,15,120,0,255,0,2,3,60,4,1,8,0], dtype=np.uint8)
 
     positions = set()
     rng = np.random.default_rng(42)

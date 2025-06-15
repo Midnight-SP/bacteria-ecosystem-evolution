@@ -24,6 +24,7 @@ LATIN_ROOTS = {
     "pheromone_preference": "Pheroprefero",
     "turning_speed": "Gyrato",
     "aggression_level": "Aggresso",
+    "eating_strength": "Edendo",
 }
 
 # Lista cech do analizy (indeksy zgodne z genome_map)
@@ -50,32 +51,34 @@ GENE_INDEX_TO_NAME = [
     "pheromone_preference",
     "turning_speed",
     "aggression_level",
+    "eating_strength",
 ]
 
 def get_species_name(genome: np.ndarray, population_genomes: list[np.ndarray]) -> str:
     """
-    Nadaje dwuczłonową nazwę łacińską na podstawie najbardziej wyróżniających się cech genomu.
+    Nadaje dwuczłonową nazwę łacińską na podstawie najbardziej wyróżniających się cech genomu,
+    ale tylko z tych genów, które faktycznie opisują cechy (nie wagi NN).
     """
-    gene_len = len(GENE_INDEX_TO_NAME)
-    # Funkcja pomocnicza: przytnij lub dopełnij genom do gene_len
-    def fix_length(g):
-        g = np.array(g)
-        if len(g) < gene_len:
-            return np.pad(g, (0, gene_len - len(g)), 'constant')
-        else:
-            return g[:gene_len]
-    # Ujednolicenie długości genomów w populacji
-    pop_matrix = np.stack([fix_length(g) for g in population_genomes])
-    # Ujednolicenie długości bieżącego genomu
-    genome_fixed = fix_length(genome)
+    gene_len = min(len(GENE_INDEX_TO_NAME), len(genome))
+    # Bierzemy tylko genomy o tej samej długości co bieżący genom
+    filtered = [np.array(g[:gene_len]) for g in population_genomes if len(g) == gene_len]
+    if not filtered:
+        pop_matrix = np.stack([genome[:gene_len]])
+    else:
+        pop_matrix = np.stack(filtered)
+    genome_fixed = np.array(genome[:gene_len])
     medians = np.median(pop_matrix, axis=0)
-    diffs = np.abs(fix_length(genome) - medians)
-    top2 = np.argsort(diffs)[-2:][::-1]
-    first, second = top2
-    genus = LATIN_ROOTS.get(GENE_INDEX_TO_NAME[first], f"Gen{first}")
-    species = LATIN_ROOTS.get(GENE_INDEX_TO_NAME[second], f"Spec{second}")
-    genus = genus.capitalize()
-    species = species.lower()
+    diffs = np.abs(genome_fixed - medians)
+    if gene_len < 2:
+        genus = "Genus"
+        species = "species"
+    else:
+        top2 = np.argsort(diffs)[-2:][::-1]
+        first, second = top2
+        genus = LATIN_ROOTS.get(GENE_INDEX_TO_NAME[first], f"Gen{first}")
+        species = LATIN_ROOTS.get(GENE_INDEX_TO_NAME[second], f"Spec{second}")
+        genus = genus.capitalize()
+        species = species.lower()
     return f"{genus} {species}"
 
 # Przykład użycia:

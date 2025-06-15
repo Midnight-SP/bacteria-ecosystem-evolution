@@ -1,3 +1,4 @@
+import logging
 import random
 from typing import Any
 
@@ -5,25 +6,30 @@ import numpy as np
 from agents.cell import Cell
 from agents.names import get_species_name
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
 class Protist(Cell):
     def __init__(self, x: int, y: int, genome=None, nn=None, input_size=5, output_size=2, population_genomes=None):
-        # Przytnij genom do 15 genów (0-14)
+        expected_len = 15 + input_size * output_size
         if genome is not None:
-            genome = np.array(genome[:15], dtype=np.uint8)
+            genome = np.array(list(genome[:expected_len]) + [0] * max(0, expected_len - len(genome)), dtype=np.uint8)
         else:
-            genome = np.random.randint(0, 255, 15, dtype=np.uint8)
+            genome = np.random.randint(0, 255, expected_len, dtype=np.uint8)
         super().__init__(x, y, genome, nn=nn, input_size=input_size, output_size=output_size)
         if population_genomes is not None and genome is not None:
             self.name = get_species_name(genome, population_genomes)
         else:
             self.name = "Protist_sp"
-        self.reproduction_cooldown = int(genome[13]) if len(genome) > 13 else 0
+        self.population_genomes = population_genomes
         self.max_energy = int(genome[0]) * 10 if len(genome) > 0 else 64
         self.max_age = int(genome[1]) if len(genome) > 1 else 10
         self.mutation_rate = abs(int(genome[2])) if len(genome) > 2 else 16
         self.pheromone_strength = int(genome[3]) if len(genome) > 3 else 64
         self.max_health = int(genome[4]) if len(genome) > 4 else 100
+        self.health = self.max_health  # Dodaj to!
         self.color = (
             int(genome[5]) if len(genome) > 5 else 0,
             int(genome[6]) if len(genome) > 6 else 0,
@@ -53,12 +59,12 @@ class Protist(Cell):
         chosen_positions = random.sample(available_neighbors, 2)
 
         if partner:
-            # Krzyżowanie genomów (połowa od siebie, połowa od partnera)
-            mid = len(self.genome) // 2
-            partner_mid = len(partner.genome) // 2
-            genome_child1 = np.concatenate([self.genome[:mid], partner.genome[partner_mid:]])
-            genome_child2 = np.concatenate([partner.genome[:partner_mid], self.genome[mid:]])
-
+            # Uniform crossover: każdy gen losowo od jednego z rodziców
+            genome_child1 = np.array([random.choice([g1, g2]) for g1, g2 in zip(self.genome, partner.genome)], dtype=np.uint8)
+            genome_child2 = np.array([random.choice([g1, g2]) for g1, g2 in zip(self.genome, partner.genome)], dtype=np.uint8)
+            # Mutacja genomu dzieci
+            genome_child1 = self.mutate(genome_child1)
+            genome_child2 = self.mutate(genome_child2)
             # Krzyżowanie sieci neuronowych
             nn_child1 = self.nn.__class__.crossover(self.nn, partner.nn, mutation_rate=self.mutation_rate/255)
             nn_child2 = self.nn.__class__.crossover(partner.nn, self.nn, mutation_rate=partner.mutation_rate/255)
@@ -67,12 +73,11 @@ class Protist(Cell):
             mid = len(self.genome) // 2
             genome_child1 = np.concatenate([self.genome[:mid], self.mutate(self.genome[mid:])])
             genome_child2 = np.concatenate([self.genome[mid:], self.mutate(self.genome[:mid])])
-
             nn_child1 = self.nn.__class__.crossover(self.nn, self.nn, mutation_rate=self.mutation_rate/255)
             nn_child2 = self.nn.__class__.crossover(self.nn, self.nn, mutation_rate=self.mutation_rate/255)
 
-        child1 = Protist(chosen_positions[0][0], chosen_positions[0][1], genome=genome_child1, nn=nn_child1, input_size=self.input_size, output_size=self.output_size)
-        child2 = Protist(chosen_positions[1][0], chosen_positions[1][1], genome=genome_child2, nn=nn_child2, input_size=self.input_size, output_size=self.output_size)
+        child1 = Protist(chosen_positions[0][0], chosen_positions[0][1], genome=genome_child1, nn=nn_child1, input_size=self.input_size, output_size=self.output_size, population_genomes=self.population_genomes)
+        child2 = Protist(chosen_positions[1][0], chosen_positions[1][1], genome=genome_child2, nn=nn_child2, input_size=self.input_size, output_size=self.output_size, population_genomes=self.population_genomes)
         # Ustaw cooldown dzieciom, żeby nie dzieliły się natychmiast
         child1.reproduction_cooldown = max(5, child1.reproduction_cooldown)
         child2.reproduction_cooldown = max(5, child2.reproduction_cooldown)
@@ -107,30 +112,41 @@ class Protist(Cell):
         cooldown = self.reproduction_cooldown / (int(self.genome[13]) + 1) if len(self.genome) > 13 else 0
         return np.array([energy, age, health, chemotaxis, cooldown])
 
+    def maintenance_energy_cost(self):
+        cost = 1
+        cost += self.metabolism_rate * 0.5
+        cost += self.chemotaxis_strength * 0.2
+        cost += self.chemotaxis_sensitivity * 0.2
+        cost += self.pheromone_strength / 100
+        cost += self.max_health / 200
+        cost -= self.reproduction_cooldown
+        cost -= self.photosynthesis_rate
+        # Dodaj inne geny jeśli chcesz
+        return cost
+
     def act(self, environment_state):
         nn_input = self.sense_environment(environment_state)
         output = self.nn.forward(nn_input)
         action = np.argmax(output)
+        logging.debug(f"Protist at ({self.x}, {self.y}) action: {action}, energy: {self.energy}, age: {self.age}")
+
+        result = None
         if action == 0:
-            self.photosynthesize()
-            return self.spread_pheromones()
+            result = self.spread_pheromones()
         elif action == 1 and self.reproduction_cooldown == 0 and self.energy > self.division_threshold:
             self.energy -= 5
             self.reproduction_cooldown = int(self.genome[13]) if len(self.genome) > 13 else 0
-            return self.divide(environment_state)
-        else:
-            self.photosynthesize()
+            result = self.divide(environment_state)
+
+        # Always update state!
+        self.energy -= self.maintenance_energy_cost()
+        self.energy = max(0, self.energy)
+        self.vitals()
         if self.reproduction_cooldown > 0:
             self.reproduction_cooldown -= 1
         self.age += 1
 
-    def photosynthesize(self):
-        # Energia z fotosyntezy zależy od genów: gen[9] (wydajność fotosyntezy) i gen[8] (metabolizm)
-        if self.energy < self.max_energy:
-            energy_gain = max(1, self.photosynthesis_rate - self.metabolism_rate)
-            self.energy += energy_gain
-            if self.energy > self.max_energy:
-                self.energy = self.max_energy
+        return result
 
     def spread_pheromones(self):
         # Rozsyłanie feromonów zależne od self.pheromone_strength

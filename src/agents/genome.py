@@ -22,6 +22,7 @@ genome_map = {
     19: "pheromone_preference",  # Preferencje feromonów
     20: "turning_speed",  # Prędkość obrotu (jak szybko może zmienić kierunek)
     21: "aggression_level",  # Poziom agresji (jak bardzo atakuje inne komórki)
+    22: "eating_strength",  # Siła jedzenia (jak dużo zdrowia zadaje przeciwnikowi)
     
     # Ostatnie input_size * output_size genów:
     # Wagi sieci neuronowej (nn_weights)

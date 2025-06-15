@@ -56,6 +56,7 @@ class SimulationWindow(QWidget):
         self.speed_slider.setMaximum(1000)
         self.speed_slider.setValue(self.simulation_speed)
         self.speed_label = QLabel("Szybkość")
+        self.stats_label = QLabel()
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.start_btn)
@@ -73,6 +74,7 @@ class SimulationWindow(QWidget):
         main_layout = QVBoxLayout()
         main_layout.addLayout(btn_layout)
         main_layout.addWidget(self.view)
+        main_layout.addWidget(self.stats_label)
         self.setLayout(main_layout)
 
         # Timer do symulacji
@@ -92,6 +94,8 @@ class SimulationWindow(QWidget):
         population_genomes = []
         for _ in range(5):
             x, y = np.random.randint(0, WORLD_WIDTH), np.random.randint(0, WORLD_HEIGHT)
+            while self.world.grid[y][x] is not None:
+                x, y = np.random.randint(0, WORLD_WIDTH), np.random.randint(0, WORLD_HEIGHT)
             # 22 geny + 28*5 wag NN = 162
             genome = np.random.randint(-128, 128, 22 + 28*5)
             population_genomes.append(genome)
@@ -107,7 +111,6 @@ class SimulationWindow(QWidget):
             self.world.grid[y][x] = p
 
     def simulation_step(self):
-        environment_state = get_environment_state(self.world)
         new_cells = []
         to_remove = []
         for y in range(self.world.height):
@@ -116,19 +119,24 @@ class SimulationWindow(QWidget):
                 if cell is not None:
                     cell.vitals()
                     if cell.is_alive:
-                        result = cell.act(environment_state)
-                        # Loguj akcję komórki
+                        environment_state = get_environment_state(self.world)
+                        # --- poprawka tu ---
+                        if isinstance(cell, Bacteria):
+                            result = cell.act(environment_state, world=self.world)
+                        else:
+                            result = cell.act(environment_state)
+                        # --- reszta bez zmian ---
                         logging.debug(f"Cell at ({x},{y}) acted: {type(cell).__name__}, energy={cell.energy}, age={cell.age}")
                         if (
                             isinstance(result, list)
                             and all(isinstance(r, tuple) and len(r) == 2 and hasattr(r[0], "x") and hasattr(r[0], "y") for r in result)
                         ):
                             for child, (cx, cy) in result:
-                                logging.info(f"Cell at ({x},{y}) divided, child at ({cx},{cy}) named {type(child).__name__}")
+                                child_name = getattr(child, "name", "unknown")
+                                logging.info(f"Cell at ({x},{y}) divided, child at ({cx},{cy}) named {child_name}")
                                 if 0 <= cx < self.world.width and 0 <= cy < self.world.height:
                                     new_cells.append((child, cx, cy))
-                            to_remove.append((x, y))  # Rodzic ginie po podziale
-                        elif cell.energy <= 0 or cell.age > cell.max_age:
+                        elif not cell.is_alive or cell.energy <= 0 or cell.age > cell.max_age:
                             logging.info(f"Cell at ({x},{y}) died ({type(cell).__name__}, energy={cell.energy}, age={cell.age}, name={cell.name})")
                             to_remove.append((x, y))
         # Usuń martwe/zużyte komórki
@@ -136,13 +144,16 @@ class SimulationWindow(QWidget):
             self.world.grid[y][x] = None
         # Dodaj nowe komórki
         for cell, x, y in new_cells:
-            logging.info(f"New cell placed at ({x},{y}): {type(cell).__name__}")
+            cell_name = getattr(cell, "name", "unknown")
+            logging.info(f"New cell placed at ({x},{y}): {cell_name}")
             if self.world.grid[y][x] is None:
                 self.world.grid[y][x] = cell
         self.render_world()
 
     def render_world(self):
         self.scene.clear()
+        bacteria_count = 0
+        protist_count = 0
         for y in range(self.world.height):
             for x in range(self.world.width):
                 cell = self.world.grid[y][x]
@@ -155,9 +166,12 @@ class SimulationWindow(QWidget):
                         rect.setBrush(QBrush(QColor(r, g, b)))
                     elif isinstance(cell, Bacteria):
                         rect.setBrush(QBrush(QColor(255, 255, 0)))  # żółty
+                        bacteria_count += 1
                     elif isinstance(cell, Protist):
                         rect.setBrush(QBrush(QColor(0, 255, 255)))  # cyjan
+                        protist_count += 1
                 self.scene.addItem(rect)
+        self.stats_label.setText(f"Bakterie: {bacteria_count} | Protisty: {protist_count}")
 
     def start_simulation(self):
         self.simulation_running = True

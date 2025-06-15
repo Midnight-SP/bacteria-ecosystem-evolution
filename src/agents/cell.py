@@ -7,13 +7,6 @@ class Cell:
         self.x = x
         self.y = y
         self.is_alive = True
-        self.neighbors = [
-            [self.x + dx, self.y + dy]
-            for dx, dy in [
-                (1, 0), (-1, 0), (0, 1), (0, -1),
-                (1, 1), (-1, -1), (1, -1), (-1, 1)
-            ]
-        ]
         self.genome = genome if genome is not None else np.random.randint(-128, 128, 255, dtype=np.uint8)
         self.initial_energy = int(self.genome[0]) if self.genome is not None else 64
         self.energy = self.initial_energy
@@ -119,3 +112,16 @@ class Cell:
             if cell_info and cell_info.get('type') == 'cell':
                 neighbors.append(cell_info['object'])
         return neighbors
+
+    @property
+    def neighbors(self):
+        # Wrap-around (torus)
+        width = getattr(self, "grid_width", 100)
+        height = getattr(self, "grid_height", 100)
+        return [
+            ((self.x + dx) % width, (self.y + dy) % height)
+            for dx, dy in [
+                (1, 0), (-1, 0), (0, 1), (0, -1),
+                (1, 1), (-1, -1), (1, -1), (-1, 1)
+            ]
+        ]

@@ -34,7 +34,7 @@ class NeuralNetwork:
                     self.weights[i, j] += np.random.normal(0, 0.1)
 
     @classmethod
-    def crossover(cls, nn1, nn2, mutation_rate=0.05):
+    def crossover(cls, nn1, nn2, mutation_rate=0.01):  # było 0.05
         genome1 = nn1.get_genome()
         genome2 = nn2.get_genome()
         split = len(genome1) // 2
