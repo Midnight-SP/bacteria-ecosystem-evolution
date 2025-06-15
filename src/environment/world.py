@@ -1,16 +1,15 @@
-from typing import Any, Optional
+from src.environment.resources import ResourceField
+from src.environment.pheromone import PheromoneField
 
 class World:
-    def __init__(self, width: int, height: int):
+    def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.grid: list[list[Optional[Any]]] = [[None for _ in range(self.width)] for _ in range(self.height)]
-    
-    def update(self):
-        pass # Placeholder for world update logic
+        self.grid = [[None for _ in range(width)] for _ in range(height)]
+        self.resources = ResourceField(width, height)
+        # Dodaj typy feromonów
+        self.pheromones = PheromoneField(width, height, pheromone_types=['food', 'danger', 'predator', 'algae'])
 
-    def consoleRender(self):
-        output = ""
-        for row in self.grid:
-            output += " ".join(str(cell) if cell is not None else "." for cell in row) + "\n"
-        return output.strip()
+    def update(self):
+        self.resources.regenerate()
+        self.pheromones.evaporate()

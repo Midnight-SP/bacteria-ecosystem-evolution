@@ -1,0 +1,14 @@
+{
+  "species_tree": {
+    "Aggresso celer [Bacteria]": [],
+    "Photosyntho caeruleo [Algae]": [],
+    "Sporulo caeruleo [Fungi]": [],
+    "Celer aggresso [Protozoa]": []
+  },
+  "species_counts": {
+    "Celer aggresso [Protozoa]": 106,
+    "Aggresso celer [Bacteria]": 303,
+    "Photosyntho caeruleo [Algae]": 792,
+    "Sporulo caeruleo [Fungi]": 294
+  }
+}
