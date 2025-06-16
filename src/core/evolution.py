@@ -13,7 +13,7 @@ def mutate_genome(genome, rate=0.01):
     """
     mutated = genome.copy()
     # 1% szans na silną mutację
-    if np.random.rand() < 0.1:
+    if np.random.rand() < 0.01:
         rate = rate * 10
     for i in range(len(mutated)):
         if np.random.rand() < rate:

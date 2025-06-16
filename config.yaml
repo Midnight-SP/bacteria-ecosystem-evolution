@@ -1,0 +1,13 @@
+world:
+  width: 100
+  height: 100
+
+agents:
+  n_bacteria: 50
+  n_algae: 20
+  n_fungi: 20
+  n_protozoa: 50
+
+evolution:
+  mutation_rate: 0.15
+  founder_threshold: 30

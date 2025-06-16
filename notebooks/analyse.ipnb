@@ -1,0 +1,15 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+stats = pd.read_csv("../stats.csv")  # ścieżka względem folderu notebooks/
+stats.head()
+
+plt.figure(figsize=(10,5))
+plt.plot(stats["step"], stats["n_agents"], label="Liczba agentów")
+plt.plot(stats["step"], stats["n_families"], label="Liczba rodzin")
+plt.plot(stats["step"], stats["n_species"], label="Liczba gatunków")
+plt.xlabel("Tura")
+plt.ylabel("Liczba")
+plt.legend()
+plt.title("Dynamika ekosystemu")
+plt.show()

@@ -48,58 +48,26 @@ GENOME_GENE_NAMES = {
     ]
 }
 
-def get_species_name(genome_obj, population_genomes, threshold=0):
+def get_species_name(genome_obj, population_genomes=None, threshold=0):
     """
-    Nadaje dwuczłonową nazwę łacińską na podstawie najbardziej wyróżniających się cech genomu.
-    Wersja: wybiera cechy najbardziej różniące się od średniej populacji lub najbliższego sąsiada.
+    Nadaje dwuczłonową nazwę łacińską na podstawie własnych genów (nie porównuje do populacji).
     """
     genome_type = type(genome_obj).__name__
     gene_names = GENOME_GENE_NAMES.get(genome_type, [])
     genome = genome_obj.genes
     gene_len = min(len(gene_names), len(genome))
-    filtered = [np.array(g[:gene_len]) for g in population_genomes if len(g) == gene_len]
-    genome_fixed = np.array(genome[:gene_len])
 
-    if not filtered:
-        pop_matrix = np.stack([genome_fixed])
-    else:
-        pop_matrix = np.stack(filtered)
-
-    # Wariant 1: różnica od średniej populacji
-    means = np.mean(pop_matrix, axis=0)
-    diffs_mean = np.abs(genome_fixed - means)
-
-    # Wariant 2: różnica od najbliższego sąsiada (inne genomy)
-    if len(pop_matrix) > 1:
-        # Oblicz dystanse do wszystkich innych genomów
-        dists = np.linalg.norm(pop_matrix - genome_fixed, axis=1)
-        # Pomijamy siebie (dystans 0)
-        nonzero = np.where(dists > 1e-8)[0]
-        if len(nonzero) > 0:
-            nearest_idx = nonzero[np.argmin(dists[nonzero])]
-            nearest = pop_matrix[nearest_idx]
-            diffs_neighbor = np.abs(genome_fixed - nearest)
-        else:
-            diffs_neighbor = diffs_mean
-    else:
-        diffs_neighbor = diffs_mean
-
-    # Możesz wybrać jedną z metod:
-    diffs = diffs_mean  # lub diffs_neighbor
-
+    # Wybierz dwie najbardziej skrajne cechy (największa i najmniejsza wartość genu)
     if gene_len < 2:
         genus = "Genus"
         species = "species"
     else:
-        top2 = np.argsort(diffs)[-2:][::-1]
-        first, second = top2
-        if diffs[first] < threshold and diffs[second] < threshold:
-            genus = "Genus"
-            species = "species"
-        else:
-            genus = LATIN_ROOTS.get(gene_names[first], f"Gen{first}")
-            species = LATIN_ROOTS.get(gene_names[second], f"Spec{second}")
-            genus = genus.capitalize()
-            species = species.lower()
+        # Indeks największego i najmniejszego genu
+        max_idx = int(np.argmax(genome[:gene_len]))
+        min_idx = int(np.argmin(genome[:gene_len]))
+        genus = LATIN_ROOTS.get(gene_names[max_idx], f"Gen{max_idx}")
+        species = LATIN_ROOTS.get(gene_names[min_idx], f"Spec{min_idx}")
+        genus = genus.capitalize()
+        species = species.lower()
     agent_type = type(genome_obj).__name__.replace("Genome", "")
     return f"{genus} {species} [{agent_type}]"

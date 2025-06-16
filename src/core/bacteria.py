@@ -8,68 +8,67 @@ class Bacteria(Agent):
     def agent_type(self):
         return "Bacteria"
 
+    def generate_founder_species_name(self, population_genomes):
+        from src.core.species_naming import get_species_name
+        return get_species_name(self.genome, population_genomes)
+
     def get_species_name(self, population_genomes):
+        if hasattr(self, "simulation_engine") and self.simulation_engine is not None:
+            founder_names = self.simulation_engine.founder_names
+            if self.founder_id in founder_names:
+                return founder_names[self.founder_id]
         from src.core.species_naming import get_species_name
         return get_species_name(self.genome, population_genomes)
 
     def act(self, environment):
         x, y = self.position
-        directions = [(-1,0), (1,0), (0,-1), (0,1)]
-        blocked = True
-        for dx, dy in directions:
-            nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-            if environment.grid[ny][nx] is None:
-                blocked = False
-                break
-        if blocked:
-            self.energy -= 1
-            self.age += 1
-            if self.energy <= 0 or self.age > self.genome.max_age:
-                self.is_alive = False
-            return None
+        grid = environment.grid
+        dirs = [(-1,0),(1,0),(0,-1),(0,1)]
 
-        # Sprawdź poziom zasobów w sąsiedztwie
-        resource_levels = []
-        for dx, dy in directions:
-            nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-            resource_levels.append(environment.resources.get(nx, ny))
+        # 1) ZJEDZ SĄSIADA
+        for dx, dy in dirs:
+            nx, ny = (x+dx)%environment.width, (y+dy)%environment.height
+            nbr = grid[ny][nx]
+            if (
+                nbr and nbr is not self
+                and hasattr(self.genome, "diet")
+                and getattr(nbr, "species_id", None) in self.genome.diet
+                and nbr.is_alive
+            ):
+                nbr.is_alive = False
+                self.energy += 60
+                # koszt tury
+                self.energy -= 1
+                self.age += 1
+                if self.energy <= 0 or self.age > self.genome.max_age:
+                    self.is_alive = False
+                return
 
-        if resource_levels and max(resource_levels) > 0:
-            idx = resource_levels.index(max(resource_levels))
-            dx, dy = directions[idx]
-        else:
-            # Odczyt feromonów 'food' w sąsiedztwie
-            pheromone_levels = []
-            for dx, dy in directions:
-                nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-                pheromone_levels.append(environment.pheromones.get(nx, ny, ptype='food'))
-            if pheromone_levels and max(pheromone_levels) > 0:
-                idx = pheromone_levels.index(max(pheromone_levels))
-                dx, dy = directions[idx]
-            else:
-                dx, dy = random.choice(directions)
+        # 2) RUCH (jeśli nie zjadł)
+        free = [( (x+dx)%environment.width, (y+dy)%environment.height )
+                for dx,dy in dirs
+                if grid[(y+dy)%environment.height][(x+dx)%environment.width] is None]
+        if free:
+            # wybór po zasobach/feromonach lub losowo
+            # tu zachowujemy istniejącą logikę wyboru pola…
+            # dla uproszczenia: losowo
+            self.position = random.choice(free)
+        # jeśli otoczony, stoi w miejscu
 
-        nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-        if environment.grid[ny][nx] is None:
-            self.position = (nx, ny)
-        else:
-            self.position = (x, y)
-        # Zostaw feromon 'food'
-        environment.pheromones.add(self.position[0], self.position[1], amount=10, ptype='food')
+        # 3) zostaw feromon FOOD
+        fx, fy = self.position
+        environment.pheromones.add(fx, fy, amount=10, ptype='food')
 
-        # Konsumuj surowce
-        eaten = environment.resources.consume(x, y, amount=5)
-        self.energy += eaten - 1
+        # 4) POBIERZ ZASOBY NA NOWEJ POZYCJI
+        eaten = environment.resources.consume(fx, fy, amount=5)
+        self.energy += eaten
 
-        # Interakcja z innymi agentami (np. agresja)
-        cell = environment.grid[y][x]
-        if cell and cell is not self:
-            if hasattr(self.genome, "diet") and hasattr(cell, "species_id"):
-                if cell.species_id in self.genome.diet and cell.species_id != self.species_id:
-                    cell.is_alive = False
-                    self.energy += 60
-
+        # 5) KOSZT UTRZYMANIA I STARZENIE
         self.energy -= 1
         self.age += 1
         if self.energy <= 0 or self.age > self.genome.max_age:
             self.is_alive = False
+
+    def __init__(self, genome, neural_network, position, parent_ids=None, founder_id=None):
+        super().__init__(genome, neural_network, position, parent_ids, founder_id)
+        self.simulation_engine = None  # <- dodaj tę linię

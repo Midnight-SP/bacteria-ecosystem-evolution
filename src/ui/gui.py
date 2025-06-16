@@ -5,7 +5,8 @@ import numpy as np
 import graphviz
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QHBoxLayout,
-    QPushButton, QFileDialog, QSpinBox, QTreeWidget, QTreeWidgetItem
+    QPushButton, QFileDialog, QSpinBox, QTreeWidget, QTreeWidgetItem,
+    QMessageBox
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap
@@ -63,25 +64,20 @@ class MainWindow(QMainWindow):
         self.resize_display_button.clicked.connect(self.change_display_size)
         self.controls_layout.addWidget(self.resize_display_button)
 
-        # Przycisk eksportu drzewa
+        # Przycisk eksportu drzewa gatunków
         self.export_tree_button = QPushButton("Eksportuj drzewo (JSON)")
         self.export_tree_button.clicked.connect(self.export_genealogy_tree)
         self.controls_layout.addWidget(self.export_tree_button)
 
-        # Przycisk eksportu drzewa jako obraz
+        # Przycisk eksportu drzewa gatunków jako obraz
         self.export_tree_img_button = QPushButton("Eksportuj drzewo (PNG)")
         self.export_tree_img_button.clicked.connect(self.export_genealogy_tree_image)
         self.controls_layout.addWidget(self.export_tree_img_button)
 
-        # Przycisk eksportu drzewa agentów
-        self.export_agent_tree_button = QPushButton("Eksportuj drzewo agentów (JSON)")
-        self.export_agent_tree_button.clicked.connect(self.export_agent_genealogy_tree)
-        self.controls_layout.addWidget(self.export_agent_tree_button)
-
-        # Przycisk eksportu drzewa agentów jako obraz
-        self.export_agent_tree_img_button = QPushButton("Eksportuj drzewo agentów (PNG)")
-        self.export_agent_tree_img_button.clicked.connect(self.export_agent_genealogy_tree_image)
-        self.controls_layout.addWidget(self.export_agent_tree_img_button)
+        # Przycisk eksportu genotypów founderów
+        self.export_founders_button = QPushButton("Eksportuj genotypy founderów")
+        self.export_founders_button.clicked.connect(self.export_founders_genotypes)
+        self.controls_layout.addWidget(self.export_founders_button)
 
         self.main_layout.addLayout(self.controls_layout)
 
@@ -101,56 +97,64 @@ class MainWindow(QMainWindow):
         # Timer do symulacji
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_simulation)
-        self.timer.start(100)  # 10 FPS
+        self.timer.start(50)
+
+        self.tree_needs_update = True  # Dodaj flagę
 
     def update_simulation(self):
         if not self.paused:
             self.simulation_engine.step()
+            self.tree_needs_update = True
         img = render_world(self.simulation_engine.world)
         pixmap = QPixmap.fromImage(img)
-        # Skalowanie do rozmiaru okna
         pixmap = pixmap.scaled(self.display_width, self.display_height, Qt.AspectRatioMode.KeepAspectRatio)
         self.image_label.setPixmap(pixmap)
-        self.update_genealogy_tree()
+        if self.tree_needs_update:
+            self.update_genealogy_tree()
+            self.tree_needs_update = False
 
     def update_genealogy_tree(self):
         self.genealogy_tree.clear()
-        species_tree = self.simulation_engine.species_tree
-        species_counts = self.simulation_engine.species_counts
-
-        # Znajdź korzenie (gatunki bez rodziców)
-        all_species = set(species_tree.keys())
-        all_parents = set()
-        for parents in species_tree.values():
-            all_parents.update(parents)
-        roots = list(all_species - all_parents)
-
-        # Mapuj species_name na typ agenta (na podstawie żywych agentów)
-        species_types = {}
+        families = {}
         for agent in self.simulation_engine.agents:
-            if agent.is_alive:
-                population_genomes = [a.genome.genes for a in self.simulation_engine.agents if a.agent_type == agent.agent_type and a.is_alive]
-                species_name = agent.get_species_name(population_genomes)
-                species_types[species_name] = getattr(agent, "agent_type", type(agent).__name__)
+            families.setdefault(agent.founder_id, []).append(agent)
 
-        def add_species_node(species_name, parent_item=None):
-            count = species_counts.get(species_name, 0)
-            agent_type = species_types.get(species_name, "?")
-            label = f"{species_name} ({count})"
+        founder_names = self.simulation_engine.founder_names
+        founder_parents = self.simulation_engine.founder_parents
+
+        roots = [fid for fid in families if founder_parents.get(fid) is None]
+
+        def count_descendants(founder_id):
+            """Zlicza wszystkich członków podrodzin (rekurencyjnie)."""
+            children = [fid for fid, parent in founder_parents.items() if parent == founder_id and fid in families]
+            total = 0
+            for child_id in children:
+                total += len(families[child_id])
+                total += count_descendants(child_id)
+            return total
+
+        def add_family_node(founder_id, parent_item=None):
+            count = len(families[founder_id])
+            descendants = count_descendants(founder_id)
+            if founder_id in founder_names:
+                label = f"{founder_names[founder_id]} ({count}), dzieci: {descendants}"
+            else:
+                agent = families[founder_id][0]
+                pop_genomes = self.simulation_engine.get_population_genomes(agent.agent_type)
+                latin_name = agent.generate_founder_species_name(pop_genomes)
+                label = f"{latin_name} ({count}), dzieci: {descendants}"
+                founder_names[founder_id] = latin_name
             item = QTreeWidgetItem([label])
             if parent_item:
                 parent_item.addChild(item)
             else:
                 self.genealogy_tree.addTopLevelItem(item)
-            # Dodaj dzieci
-            children = [s for s, parents in species_tree.items() if species_name in parents]
-            for child in children:
-                add_species_node(child, item)
+            children = [fid for fid, parent in founder_parents.items() if parent == founder_id and fid in families]
+            for child_id in children:
+                add_family_node(child_id, item)
 
-        for root in roots:
-            add_species_node(root)
-
-        self.genealogy_tree.expandAll()
+        for root_id in roots:
+            add_family_node(root_id)
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -191,51 +195,67 @@ class MainWindow(QMainWindow):
             dot = graphviz.Digraph(comment="Genealogy Tree")
             species_tree = self.simulation_engine.species_tree
             species_counts = self.simulation_engine.species_counts
-            # Dodaj węzły
-            for species, parents in species_tree.items():
-                label = f"{species}\n({species_counts.get(species, 0)})"
-                dot.node(species, label)
-                for parent in parents:
-                    dot.edge(parent, species)
-            dot.format = "png"
-            dot.render(path, view=False, cleanup=True)
+            founder_names = self.simulation_engine.founder_names
+            founder_parents = self.simulation_engine.founder_parents
+            agents_by_founder = self.simulation_engine.agents_by_founder
 
-    def export_agent_genealogy_tree(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz drzewo agentów", "", "Pliki JSON (*.json)")
-        if path:
-            data = {}
-            for agent in self.simulation_engine.agents:
-                population_genomes = [a.genome.genes for a in self.simulation_engine.agents if a.agent_type == agent.agent_type and a.is_alive]
-                data[agent.id] = {
-                    "parent_ids": agent.parent_ids,
-                    "species_name": agent.get_species_name(population_genomes),
-                }
-            genealogy = self.simulation_engine.genealogy
-            export = {"agents": data, "genealogy": genealogy}
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(export, f, ensure_ascii=False, indent=2)
+            # Funkcja do liczenia wszystkich potomków (rekurencyjnie)
+            def count_descendants(founder_id):
+                children = [fid for fid, parent in founder_parents.items() if parent == founder_id and fid in agents_by_founder]
+                total = 0
+                for child_id in children:
+                    total += len(agents_by_founder[child_id])
+                    total += count_descendants(child_id)
+                return total
 
-    def export_agent_genealogy_tree_image(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz drzewo agentów", "", "Obrazy PNG (*.png)")
-        if path:
-            import graphviz
-            dot = graphviz.Digraph(comment="Agent Genealogy Tree")
-            agents = {a.id: a for a in self.simulation_engine.agents}
-            genealogy = self.simulation_engine.genealogy
             # Dodaj węzły
-            for agent_id, agent in agents.items():
-                population_genomes = [a.genome.genes for a in agents.values() if a.agent_type == agent.agent_type and a.is_alive]
-                label = f"{agent.get_species_name(population_genomes)}\nID:{agent_id}"
-                dot.node(str(agent_id), label)
+            for founder_id, name in founder_names.items():
+                count = len(agents_by_founder.get(founder_id, []))
+                descendants = count_descendants(founder_id)
+                label = f"{name}\n({count} członków, dzieci: {descendants})"
+                dot.node(str(founder_id), label)
+
             # Dodaj krawędzie
-            for child_id, parent_ids in genealogy.items():
-                for pid in parent_ids:
-                    if str(pid) in dot.body and str(child_id) in dot.body:
-                        dot.edge(str(pid), str(child_id))
-                    else:
-                        dot.edge(str(pid), str(child_id))
+            for founder_id, parent_id in founder_parents.items():
+                if parent_id is not None and founder_id in founder_names and parent_id in founder_names:
+                    dot.edge(str(parent_id), str(founder_id))
+
             dot.format = "png"
             dot.render(path, view=False, cleanup=True)
+
+    def export_founders_genotypes(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Zapisz genotypy founderów", "", "Pliki CSV (*.csv)")
+        if not path:
+            return
+
+        # Zbierz founderów rodzin z żyjącymi członkami
+        engine = self.simulation_engine
+        living_founders = set(a.founder_id for a in engine.agents if a.is_alive)
+        rows = []
+        for founder_id in living_founders:
+            genome = engine.founders.get(founder_id)
+            name = engine.founder_names.get(founder_id, str(founder_id))
+            if genome is not None:
+                # Zamień genom na listę liczb
+                genome_list = list(map(int, genome))
+                rows.append({
+                    "founder_id": founder_id,
+                    "name": name,
+                    "genome": genome_list
+                })
+
+        # Zapisz do CSV
+        import csv
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["founder_id", "name", "genome"])
+            writer.writeheader()
+            for row in rows:
+                # Zapisz genom jako string
+                row_out = row.copy()
+                row_out["genome"] = ";".join(map(str, row["genome"]))
+                writer.writerow(row_out)
+
+        QMessageBox.information(self, "Eksport zakończony", f"Wyeksportowano {len(rows)} founderów.")
 
 def run_gui(simulation_engine):
     app = QApplication(sys.argv)
