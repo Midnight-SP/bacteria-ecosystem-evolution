@@ -47,17 +47,19 @@ class Agent(ABC):
         return occupied
 
     def can_reproduce(self, environment=None):
-        if self.agent_type in ("Bacteria", "Fungi"):
-            min_energy = 200
-            min_age = 15
-        else:
-            min_energy = 300
-            min_age = 20
+        # bardziej wymagające rozmnażanie dla bakterii
+        if self.agent_type == "Algae":
+            # jeszcze bardziej wymagające rozmnażanie
+            min_energy, min_age, repro_chance = 100, 15, 1
+        elif self.agent_type == "Fungi":
+            min_energy, min_age, repro_chance = 50, 5, 1
+        else:  # Algae, Protozoa
+            min_energy, min_age, repro_chance = 300, 30, 0.10
         if environment is not None:
-            occupied = self.count_occupied_neighbors(environment)
-            if occupied > 2:
+            # zabroń rozmnażania, jeśli co najmniej połowa sąsiadów (4 kierunki) jest zajęta
+            if self.count_occupied_neighbors(environment) >= 2:
                 return False
-        return self.energy > min_energy and self.age > min_age and random.random() < 0.1
+        return self.energy > min_energy and self.age > min_age and random.random() < repro_chance
 
     def reproduce(self, partner=None):
         from src.core.evolution import uniform_crossover, mutate_genome

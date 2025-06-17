@@ -3,6 +3,7 @@ import pickle
 import json
 import numpy as np
 import graphviz
+from collections import Counter
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QHBoxLayout,
     QPushButton, QFileDialog, QSpinBox, QTreeWidget, QTreeWidgetItem,
@@ -79,6 +80,10 @@ class MainWindow(QMainWindow):
         self.export_founders_button.clicked.connect(self.export_founders_genotypes)
         self.controls_layout.addWidget(self.export_founders_button)
 
+        # nowa etykieta ze statystykami
+        self.stats_label = QLabel("Steps: 0 | Bacteria: 0 Algae: 0 Fungi: 0 Protozoa: 0")
+        self.controls_layout.addWidget(self.stats_label)
+
         self.main_layout.addLayout(self.controls_layout)
 
         # Obraz symulacji
@@ -105,6 +110,9 @@ class MainWindow(QMainWindow):
         if not self.paused:
             self.simulation_engine.step()
             self.tree_needs_update = True
+        # zaktualizuj licznik
+        self._update_stats_label()
+
         img = render_world(self.simulation_engine.world)
         pixmap = QPixmap.fromImage(img)
         pixmap = pixmap.scaled(self.display_width, self.display_height, Qt.AspectRatioMode.KeepAspectRatio)
@@ -256,6 +264,19 @@ class MainWindow(QMainWindow):
                 writer.writerow(row_out)
 
         QMessageBox.information(self, "Eksport zakończony", f"Wyeksportowano {len(rows)} founderów.")
+
+    def _update_stats_label(self):
+        """Aktualizuje tekst w stats_label na podstawie engine.agents."""
+        engine = self.simulation_engine
+        step = engine.step_count
+        alive = [a.agent_type for a in engine.agents if a.is_alive]
+        cnt = Counter(alive)
+        text = (f"Steps: {step} | "
+                f"Bacteria: {cnt.get('Bacteria',0)} "
+                f"Algae: {cnt.get('Algae',0)} "
+                f"Fungi: {cnt.get('Fungi',0)} "
+                f"Protozoa: {cnt.get('Protozoa',0)}")
+        self.stats_label.setText(text)
 
 def run_gui(simulation_engine):
     app = QApplication(sys.argv)

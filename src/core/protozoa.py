@@ -3,6 +3,7 @@ import random
 
 class Protozoa(Agent):
     species_id = 3
+    diet = [0, 1]   # stała dieta: zjada Bacteria i Algae
 
     @property
     def agent_type(self):
@@ -17,20 +18,21 @@ class Protozoa(Agent):
     def act(self, environment):
         x, y = self.position
         grid = environment.grid
-        directions = [(-1,0), (1,0), (0,-1), (0,1)]
+        directions = [(-1,0),(1,0),(0,-1),(0,1)]
 
-        # --- ZJEDZ SĄSIADÓW ---
+        # ZJEDZ SĄSIADA
         for dx, dy in directions:
-            nx, ny = (x+dx) % environment.width, (y+dy) % environment.height
+            nx, ny = (x+dx)%environment.width, (y+dy)%environment.height
             nbr = grid[ny][nx]
             if (
-                nbr is not None and nbr is not self
-                and hasattr(self.genome, "diet")
-                and hasattr(nbr, "species_id")
-                and nbr.species_id in self.genome.diet
-                and nbr.species_id != self.species_id
-                and getattr(nbr, "is_alive", True)
+                nbr is not self
+                and getattr(nbr, "is_alive", False)
+                # zabezpieczamy się przed brakiem species_id u AncestorAgent
+                and getattr(nbr, "species_id", None) in self.diet
             ):
+                if random.random() < getattr(nbr.genome, "defense", 0):
+                    self._post_action()
+                    return
                 nbr.is_alive = False
                 self.energy += 40
                 self._post_action()

@@ -32,36 +32,42 @@ class AncestorAgent(Agent):
 def create_agents(world, n_bacteria, n_algae, n_fungi, n_protozoa):
     agents = []
 
+    # Define the four corners of the world
+    corners = [
+        (0, 0),
+        (world.width - 1, 0),
+        (0, world.height - 1),
+        (world.width - 1, world.height - 1)
+    ]
+
     # 0. Stwórz pra_pra founder (ancestor)
     pra_pra_genome = Genome(np.array([128, 128, 128, 128, 128, 128], dtype=np.uint8))
     pra_pra_nn = NeuralNetwork(5, 3)
     pra_pra = AncestorAgent(pra_pra_genome, pra_pra_nn, (0, 0), parent_ids=[], founder_id=None)
     agents.append(pra_pra)
 
-    # 1. Stwórz pra-founderów z sensownymi genami
+    # 1. Stwórz pra-founderów z sensownymi genami w czterech rogach świata
+    # BacteriaGenome now: [initial_energy, max_age, red, green, blue, speed, aggression, defense]
     pra_bacteria_genes = np.array([
-        220, 120, 220, 50, 50, 220, 240, 1, 2
+        220, 120, 220, 50, 50, 220, 240, 128
     ], dtype=np.uint8)
-    pra_bacteria = Bacteria(BacteriaGenome(pra_bacteria_genes), NeuralNetwork(5, 3), (0, 0), parent_ids=[pra_pra.id])
-    pra_bacteria.founder_id = pra_bacteria.id
+    pra_bacteria = Bacteria(BacteriaGenome(pra_bacteria_genes), NeuralNetwork(5, 3), corners[0], parent_ids=[pra_pra.id])
 
     pra_algae_genes = np.array([
         180, 200, 50, 220, 50, 120, 0
     ], dtype=np.uint8)
-    pra_algae = Algae(AlgaeGenome(pra_algae_genes), NeuralNetwork(5, 3), (0, 0), parent_ids=[pra_pra.id])
-    pra_algae.founder_id = pra_algae.id
+    pra_algae = Algae(AlgaeGenome(pra_algae_genes), NeuralNetwork(5, 3), corners[1], parent_ids=[pra_pra.id])
 
     pra_fungi_genes = np.array([
         160, 180, 120, 50, 220, 200, 3
     ], dtype=np.uint8)
-    pra_fungi = Fungi(FungiGenome(pra_fungi_genes), NeuralNetwork(5, 3), (0, 0), parent_ids=[pra_pra.id])
-    pra_fungi.founder_id = pra_fungi.id
+    pra_fungi = Fungi(FungiGenome(pra_fungi_genes), NeuralNetwork(5, 3), corners[2], parent_ids=[pra_pra.id])
 
+    # ProtozoaGenome now: [initial_energy, max_age, red, green, blue, aggression, speed, defense]
     pra_protozoa_genes = np.array([
-        210, 140, 50, 50, 220, 240, 240, 0, 1, 2
+        210, 140, 50, 50, 220, 240, 240, 128
     ], dtype=np.uint8)
-    pra_protozoa = Protozoa(ProtozoaGenome(pra_protozoa_genes), NeuralNetwork(5, 3), (0, 0), parent_ids=[pra_pra.id])
-    pra_protozoa.founder_id = pra_protozoa.id
+    pra_protozoa = Protozoa(ProtozoaGenome(pra_protozoa_genes), NeuralNetwork(5, 3), corners[3], parent_ids=[pra_pra.id])
 
     agents.extend([pra_bacteria, pra_algae, pra_fungi, pra_protozoa])
 

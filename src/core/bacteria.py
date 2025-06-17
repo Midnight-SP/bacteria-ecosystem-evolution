@@ -3,6 +3,7 @@ from src.core.agent import Agent
 
 class Bacteria(Agent):
     species_id = 0
+    diet = [1]   # stała dieta: zjada tylko Algae
 
     @property
     def agent_type(self):
@@ -30,13 +31,15 @@ class Bacteria(Agent):
             nx, ny = (x+dx)%environment.width, (y+dy)%environment.height
             nbr = grid[ny][nx]
             if (
-                nbr and nbr is not self
-                and hasattr(self.genome, "diet")
-                and getattr(nbr, "species_id", None) in self.genome.diet
-                and nbr.is_alive
+                nbr is not self
+                and getattr(nbr, "is_alive", False)
+                # zabezpieczamy się przed brakiem species_id
+                and getattr(nbr, "species_id", None) in self.diet
             ):
+                if random.random() < getattr(nbr.genome, "defense", 0):
+                    return
                 nbr.is_alive = False
-                self.energy += 60
+                self.energy += 40
                 # koszt tury
                 self.energy -= 1
                 self.age += 1

@@ -12,10 +12,10 @@ Symulacja ewolucji mikroorganizmów w dynamicznym ekosystemie.
 
 ## Inspiracje
 
-- [neat-python](https://github.com/CodeReclaimers/neat-python) – ewolucja sieci neuronowych
-- [FAVITES](https://github.com/niemasd/FAVITES) – modularność i konfiguracja
-- [cax](https://github.com/maxencefaldor/cax) – automaty komórkowe, wizualizacja
-- [PyLife2](https://github.com/steph-koopmanschap/PyLife2) – proste modele sztucznego życia
+- [neat-python](https://github.com/CodeReclaimers/neat-python) – biblioteka do ewolucji sieci neuronowych metodą NEAT.
+- [FAVITES](https://github.com/niemasd/FAVITES) – narzędzie do symulacji i analizy rozprzestrzeniania się patogenów z modularną architekturą.
+- [cax](https://github.com/maxencefaldor/cax) – framework do tworzenia i wizualizacji automatów komórkowych.
+- [PyLife2](https://github.com/steph-koopmanschap/PyLife2) – prosty symulator sztucznego życia oparty na automatach komórkowych.
 
 ## Struktura projektu
 

@@ -48,16 +48,16 @@ class Fungi(Agent):
                 self.is_alive = False
             return None
 
+        # --- SPORY GRZYBÓW: losowa szansa wg gen.spore_spread ---
         spawn_pos = None
-        if self.energy > 20 and self.age > 10:
-            if random.random() < (self.genome.spore_spread / 100):
-                directions = [(-1,0), (1,0), (0,-1), (0,1)]
-                random.shuffle(directions)
-                for dx, dy in directions:
-                    nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-                    if grid[ny][nx] is None:
-                        spawn_pos = (nx, ny)
-                        break
+        if self.energy >= 50 and self.age >= 5 and random.random() < (self.genome.spore_spread / 100):
+            directions = [(-1,0), (1,0), (0,-1), (0,1)]
+            random.shuffle(directions)
+            for dx, dy in directions:
+                nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
+                if grid[ny][nx] is None:
+                    spawn_pos = (nx, ny)
+                    break
 
         eaten = environment.resources.consume(x, y, amount=2)
         self.energy += eaten - 1

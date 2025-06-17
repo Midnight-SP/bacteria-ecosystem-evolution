@@ -11,5 +11,5 @@ class World:
         self.pheromones = PheromoneField(width, height, pheromone_types=['food', 'danger', 'predator', 'algae'])
 
     def update(self):
-        self.resources.regenerate()
+        self.resources.regenerate(rate=2)
         self.pheromones.evaporate()

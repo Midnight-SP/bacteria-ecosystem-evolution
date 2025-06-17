@@ -40,25 +40,17 @@ class Algae(Agent):
                 self.is_alive = False
             return None
 
-        # Rozprzestrzenianie gdy osiągnięto limit energii i odpowiedni wiek
+        # --- ROZMNAŻANIE ALGI ---
         spawn_pos = None
-        min_divide_age = 200  # większy minimalny wiek do podziału
-
-        # Sprawdź ile sąsiednich pól jest zajętych
-        occupied_neighbors = 0
-        for dx, dy in directions:
-            nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
-            if grid[ny][nx] is not None:
-                occupied_neighbors += 1
-
-        # Alga nie może się podzielić, jeśli ponad połowa sąsiadów jest zajęta
-        if self.energy >= 400 and self.age >= min_divide_age and occupied_neighbors <= 2:
+        # obniżone progi: energia>=100, wiek>=10
+        if self.energy >= 100 and self.age >= 10:
             random.shuffle(directions)
             for dx, dy in directions:
                 nx, ny = (x + dx) % environment.width, (y + dy) % environment.height
                 if grid[ny][nx] is None:
                     spawn_pos = (nx, ny)
-                    self.energy = self.energy // 2 - 100  # podziel energię i odejmij koszt podziału
+                    # dzielimy energię po równo
+                    self.energy //= 2
                     break
 
         # Minimalny ruch (algi mogą się powoli rozprzestrzeniać)
@@ -87,8 +79,8 @@ class Algae(Agent):
                 x, y = nx, ny
             self.position = (x, y)
 
-        # Fotosynteza: zysk energii co turę (zmniejszony)
-        self.energy += max(1, self.genome.photosynthesis // 8)
+        # Fotosynteza: podbijamy zysk energii
+        self.energy += max(1, self.genome.photosynthesis // 4)
 
         # Konsumuj minimalnie surowce (np. minerały)
         eaten = environment.resources.consume(x, y, amount=1)

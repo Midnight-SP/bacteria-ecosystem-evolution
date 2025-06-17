@@ -23,25 +23,26 @@ LATIN_ROOTS = {
     "infectivity": "Infecto",
     "resistance": "Resisto",
     "replication_rate": "Multiplico",
+    "defense": "Defenso",
 }
 
 # Mapowanie: typ genomu -> lista nazw genów (kolejność zgodna z GENE_MAP)
 GENOME_GENE_NAMES = {
     "BacteriaGenome": [
         "initial_energy", "max_age", "color_red", "color_green", "color_blue",
-        "speed", "aggression"
+        "speed", "aggression", "defense"
     ],
     "AlgaeGenome": [
         "initial_energy", "max_age", "color_red", "color_green", "color_blue",
-        "photosynthesis"
+        "photosynthesis", "defense"
     ],
     "FungiGenome": [
         "initial_energy", "max_age", "color_red", "color_green", "color_blue",
-        "spore_spread"
+        "spore_spread", "defense"
     ],
     "ProtozoaGenome": [
         "initial_energy", "max_age", "color_red", "color_green", "color_blue",
-        "aggression", "speed"
+        "aggression", "speed", "defense"
     ],
     "Genome": [
         "initial_energy", "max_age", "color_red", "color_green", "color_blue", "speed"

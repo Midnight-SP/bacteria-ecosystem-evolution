@@ -4,6 +4,7 @@ from typing import Optional
 from src.utils.logger import StatsLogger
 from src.core.evolution import mutate_genome
 from threading import Lock, Thread
+import random
 
 class SimulationEngine:
     def __init__(self, world, agents, config=None):
@@ -124,8 +125,21 @@ class SimulationEngine:
                 result = agent.act(self.world)
                 x, y = agent.position
                 self.world.grid[y][x] = agent
+
                 if hasattr(agent, "can_reproduce") and agent.can_reproduce(self.world):
+                    # znajdź wolne sąsiednie pole
+                    dirs = [(-1,0),(1,0),(0,-1),(0,1)]
+                    free = []
+                    for dx, dy in dirs:
+                        nx, ny = (x+dx) % self.world.width, (y+dy) % self.world.height
+                        if self.world.grid[ny][nx] is None:
+                            free.append((nx, ny))
+                    if not free:
+                        continue  # brak miejsca na potomka
+                    # utwórz potomka i ustaw jego pozycję na wolne pole
+                    spawn_x, spawn_y = random.choice(free)
                     child = agent.reproduce()
+                    child.position = (spawn_x, spawn_y)
                     child.energy = agent.energy // 2
                     agent.energy = agent.energy // 2
 
